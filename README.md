@@ -1,6 +1,6 @@
 # 项目管理器
 
-**[English](README_en.md), [中文](README.md).**
+**[English](README_EN.md)|[中文](README.md).**
 
 基于 NiceGUI 的 Web 项目管理器，管理本地 Web 服务的启动、停止与状态监控。
 
