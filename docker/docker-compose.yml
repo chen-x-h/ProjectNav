@@ -1,0 +1,18 @@
+services:
+  project-manager:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    network_mode: host
+    environment:
+      - TZ=Asia/Shanghai
+      - HOST=0.0.0.0
+      - PORT=${PORT:-20001}
+      - PROJECTS_FILE=/data/projects.json
+      - LOG_FILE=/data/project_manager.log
+      - START_TEMPLATE=/data/start_script_template.txt
+      - STOP_TEMPLATE=/data/stop_script_template.txt
+      - UV_INDEX_URL=https://mirrors.aliyun.com/pypi/simple/
+    volumes:
+      - ./data:/data
+    restart: unless-stopped
