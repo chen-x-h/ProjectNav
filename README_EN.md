@@ -1,5 +1,7 @@
 # Project Nav
 
+**[English](README_EN.md)|[中文](README.md).**
+
 A web-based project manager built with NiceGUI for managing local web services — start, stop, and monitor their status.
 
 ![Overview](imgs/overview.png)
