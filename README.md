@@ -1,4 +1,4 @@
-# 项目管理器
+# 项目导航
 
 **[English](README_EN.md)|[中文](README.md).**
 
