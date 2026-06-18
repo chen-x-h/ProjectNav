@@ -1,4 +1,4 @@
-# Project Manager
+# Project Nav
 
 A web-based project manager built with NiceGUI for managing local web services — start, stop, and monitor their status.
 
