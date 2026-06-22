@@ -99,6 +99,7 @@ status_map: dict[int, Optional[bool]] = {}
 search_text = ""
 filter_auto_only = False
 filter_category = ""
+filter_tag = ""
 
 _next_id = 0
 for p in projects:
@@ -112,6 +113,7 @@ for p in projects:
         p["category"] = "未分类"
     p.setdefault("auto_start", False)
     p.setdefault("extra_links", [])
+    p.setdefault("tags", [])
 
 
 def get_project(pid: int) -> Optional[dict]:
@@ -126,6 +128,13 @@ def all_categories() -> list[str]:
     return cats
 
 
+def all_tags() -> list[str]:
+    ts = set()
+    for p in projects:
+        ts.update(p.get("tags", []))
+    return sorted(ts)
+
+
 def filtered_projects() -> list[dict]:
     result = projects
     if search_text:
@@ -134,6 +143,8 @@ def filtered_projects() -> list[dict]:
         result = [p for p in result if p.get("auto_start")]
     if filter_category:
         result = [p for p in result if p.get("category", "未分类") == filter_category]
+    if filter_tag:
+        result = [p for p in result if filter_tag in p.get("tags", [])]
     return result
 
 
@@ -152,7 +163,7 @@ def refresh():
 
 
 def build_ui():
-    global filter_category
+    global filter_category, filter_tag
     with container:
         with ui.row().classes("w-full items-center mb-2"):
             search_input = ui.input("搜索项目名称", value=search_text).props("outlined dense clearable").classes("flex-1")
@@ -184,6 +195,15 @@ def build_ui():
                 filter_category = e.value
                 refresh()
             ui.select(cats, value=filter_category, label="全部分类", on_change=on_cat_filter).props("outlined dense").classes("w-40")
+
+            tag_opts = [""] + all_tags()
+            if filter_tag and filter_tag not in tag_opts:
+                filter_tag = ""
+            def on_tag_filter(e):
+                global filter_tag
+                filter_tag = e.value
+                refresh()
+            ui.select(tag_opts, value=filter_tag, label="全部标签", on_change=on_tag_filter).props("outlined dense").classes("w-40")
 
             async def do_batch_auto_start():
                 ui.notify("开始批量自启动...", type="info", close_button=True)
@@ -227,6 +247,8 @@ def build_ui():
                                 ui.markdown(f"**{p['name']}**").classes("text-lg")
                                 if p.get("auto_start"):
                                     ui.label("自启动").classes("text-xs bg-green-100 text-green-700 px-1.5 py-0.5 rounded inline-block")
+                            for t in p.get("tags", []):
+                                ui.label(t).classes("text-xs bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded inline-block")
                             if p.get("description"):
                                 ui.markdown(p["description"])
                             if p.get("url"):
@@ -268,7 +290,7 @@ def build_ui():
 def add_project():
     open_form({
         "name": "", "description": "", "url": "", "category": "未分类",
-        "start_script": "", "stop_script": "", "auto_start": False, "extra_links": [],
+        "start_script": "", "stop_script": "", "auto_start": False, "extra_links": [], "tags": [],
     }, None)
 
 
@@ -297,11 +319,12 @@ def open_form(data: dict, pid: Optional[int]):
     with ui.dialog() as dialog, ui.card().classes("w-full max-w-[800px]").style("max-height: 85vh; overflow-y: auto;"):
         ui.label("编辑项目" if pid is not None else "添加项目").classes("text-xl mb-4")
         name = ui.input("项目名称", value=data["name"]).classes("w-full")
-        cat_val = data.get("category", "未分类")
-        cat_options = all_categories()
-        if cat_val not in cat_options:
-            cat_options = [cat_val] + cat_options
-        cat = ui.select(cat_options, value=cat_val, label="分类", new_value_mode="add").classes("w-full")
+        with ui.row().classes("w-full items-center gap-1"):
+            cat = ui.input("分类", value=data.get("category", "未分类")).classes("flex-1")
+            with ui.button(icon="arrow_drop_down", on_click=lambda: cat_menu.open()).props("flat dense"):
+                with ui.menu() as cat_menu:
+                    for c in all_categories():
+                        ui.menu_item(c, on_click=lambda v=c: (setattr(cat, 'value', v), cat_menu.close()))
         url = ui.input("项目地址", value=data.get("url", "")).classes("w-full")
 
         with ui.row().classes("w-full items-center gap-2"):
@@ -316,6 +339,29 @@ def open_form(data: dict, pid: Optional[int]):
             desc = ui.textarea("", value=data.get("description", "")).props("rows=10").classes("w-full")
 
         auto_start = ui.checkbox("启动时自动运行启动脚本", value=data.get("auto_start", False))
+
+        # Tags
+        tags = data.get("tags", [])
+        ui.separator().classes("my-2")
+        ui.label("标签").classes("text-lg")
+        with ui.row().classes("w-full items-center gap-2"):
+            tag_input = ui.input("输入标签后回车").classes("flex-1").on("keyup.enter", lambda: add_tag())
+            def add_tag():
+                val = tag_input.value.strip()
+                if val and val not in tags:
+                    tags.append(val)
+                    rebuild_tags()
+                tag_input.value = ""
+            ui.button("添加", on_click=add_tag, icon="add").props("flat")
+        tags_container = ui.row().classes("w-full gap-1 flex-wrap")
+        def rebuild_tags():
+            tags_container.clear()
+            with tags_container:
+                for t in tags[:]:
+                    with ui.element("span").classes("inline-flex items-center gap-1 text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded"):
+                        ui.label(t)
+                        ui.icon("close").on("click", lambda v=t: (tags.remove(v), rebuild_tags())).props("flat dense cursor-pointer").classes("text-xs hover:text-red-500")
+        rebuild_tags()
 
         # Extra links
         ui.separator().classes("my-2")
@@ -338,19 +384,19 @@ def open_form(data: dict, pid: Optional[int]):
 
         with ui.row().classes("w-full justify-end mt-4"):
             ui.button("取消", on_click=dialog.close).props("flat")
-            ui.button("保存", on_click=lambda: save_form(dialog, pid, name.value, desc.value, url.value, cat.value, start.value, stop.value, auto_start.value, links))
+            ui.button("保存", on_click=lambda: save_form(dialog, pid, name.value, desc.value, url.value, cat.value, start.value, stop.value, auto_start.value, links, tags))
 
     dialog.open()
 
 
-def save_form(dialog, pid, name, description, url, category, start_script, stop_script, auto_start, extra_links):
+def save_form(dialog, pid, name, description, url, category, start_script, stop_script, auto_start, extra_links, tags):
     global _next_id, projects
     data = {
         "id": pid if pid is not None else _next_id,
         "name": name, "description": description,
         "url": url, "category": category,
         "start_script": start_script, "stop_script": stop_script,
-        "auto_start": auto_start, "extra_links": extra_links,
+        "auto_start": auto_start, "extra_links": extra_links, "tags": tags,
     }
     if pid is not None:
         for i, p in enumerate(projects):
@@ -424,4 +470,3 @@ ui.run(
     port=PORT,
     reload=False,
 )
-
