@@ -12,6 +12,7 @@ services:
       - LOG_FILE=/data/project_manager.log
       - START_TEMPLATE=/data/start_script_template.txt
       - STOP_TEMPLATE=/data/stop_script_template.txt
+      - SORT_FILE=/data/sort_order.json
       - UV_INDEX_URL=https://mirrors.aliyun.com/pypi/simple/
     volumes:
       - ./data:/data

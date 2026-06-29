@@ -20,6 +20,7 @@ DATA_FILE = _env_path("PROJECTS_FILE", BASE_DIR / "projects.json")
 LOG_FILE = _env_path("LOG_FILE", Path(tempfile.gettempdir()) / "project_manager.log")
 TEMPLATE_FILE = _env_path("START_TEMPLATE", BASE_DIR / "start_script_template.txt")
 STOP_TEMPLATE_FILE = _env_path("STOP_TEMPLATE", BASE_DIR / "stop_script_template.txt")
+SORT_FILE = _env_path("SORT_FILE", BASE_DIR / "sort_order.json")
 
 HOST = os.environ.get("HOST", "0.0.0.0")
 PORT = int(os.environ.get("PORT", "20001"))
@@ -49,6 +50,18 @@ def save_projects(projects: list[dict]):
     with open(DATA_FILE, "w", encoding="utf-8") as f:
         json.dump(projects, f, indent=2, ensure_ascii=False)
     logger.info("已保存 %d 个项目到 %s", len(projects), DATA_FILE)
+
+
+def load_sort_order() -> dict:
+    if not SORT_FILE.exists():
+        return {"categories": [], "projects": {}}
+    with open(SORT_FILE, encoding="utf-8") as f:
+        return json.load(f)
+
+
+def save_sort_order(order: dict):
+    with open(SORT_FILE, "w", encoding="utf-8") as f:
+        json.dump(order, f, indent=2, ensure_ascii=False)
 
 
 def run_script(path: str) -> str:
@@ -116,6 +129,7 @@ for p in projects:
     p.setdefault("tags", [])
 
 
+
 def get_project(pid: int) -> Optional[dict]:
     for p in projects:
         if p["id"] == pid:
@@ -149,12 +163,27 @@ def filtered_projects() -> list[dict]:
 
 
 def grouped_projects(proj_list: list[dict]) -> list[tuple[str, list[dict]]]:
+    sort_order = load_sort_order()
+    cat_order = sort_order.get("categories", [])
+    proj_order = sort_order.get("projects", {})
     groups: dict[str, list[dict]] = {}
     for p in proj_list:
         cat = p.get("category", "未分类")
         groups.setdefault(cat, []).append(p)
-    sorted_cats = sorted(groups.keys(), key=lambda c: (c == "未分类", c))
-    return [(c, groups[c]) for c in sorted_cats]
+    def cat_key(c):
+        i = cat_order.index(c) if c in cat_order else -1
+        return (0, i) if i >= 0 else (1, c)
+    sorted_cats = sorted(groups.keys(), key=cat_key)
+    result = []
+    for c in sorted_cats:
+        cat_projects = groups[c]
+        order = proj_order.get(c, [])
+        def proj_key(p):
+            i = order.index(p["id"]) if p["id"] in order else -1
+            return (0, i) if i >= 0 else (1, p.get("name", "").lower())
+        cat_projects.sort(key=proj_key)
+        result.append((c, cat_projects))
+    return result
 
 
 def refresh():
@@ -222,6 +251,7 @@ def build_ui():
 
             ui.button("检测所有", on_click=check_all, icon="travel_explore").props("flat")
             ui.button("添加项目", on_click=add_project, icon="add")
+            ui.button("排序", on_click=open_sort_dialog, icon="reorder").props("flat")
 
         filtered = filtered_projects()
         groups = grouped_projects(filtered)
@@ -285,6 +315,88 @@ def build_ui():
 
         if not filtered:
             ui.label("暂无项目").classes("text-gray-400 text-center w-full mt-8")
+
+
+def open_sort_dialog():
+    sort_order = load_sort_order()
+
+    def sync_cats():
+        cats = all_categories()
+        order = sort_order.setdefault("categories", [])
+        order[:] = [c for c in order if c in cats]
+        for c in cats:
+            if c not in order:
+                order.append(c)
+
+    def sync_projs(cat: str) -> list:
+        cat_ids = [p["id"] for p in projects if p.get("category", "未分类") == cat]
+        order = sort_order.setdefault("projects", {}).setdefault(cat, [])
+        order[:] = [pid for pid in order if pid in cat_ids]
+        for pid in cat_ids:
+            if pid not in order:
+                order.append(pid)
+        return order
+
+    sync_cats()
+
+    with ui.dialog() as dlg, ui.card().classes("w-[600px] max-w-full"):
+        title = ui.label("分类排序").classes("text-xl mb-4")
+        container = ui.column().classes("w-full gap-1")
+
+        def show_cats():
+            container.clear()
+            title.set_text("分类排序")
+            cats = sort_order["categories"]
+            with container:
+                for i, c in enumerate(cats):
+                    with ui.row().classes("w-full items-center p-2 bg-gray-50 rounded border"):
+                        def move_up(idx=i):
+                            if idx > 0:
+                                cats[idx], cats[idx-1] = cats[idx-1], cats[idx]
+                                save_sort_order(sort_order)
+                                show_cats()
+                        def move_down(idx=i):
+                            if idx < len(cats) - 1:
+                                cats[idx], cats[idx+1] = cats[idx+1], cats[idx]
+                                save_sort_order(sort_order)
+                                show_cats()
+                        ui.button(icon="arrow_upward", on_click=move_up).props("flat dense round size-xs")
+                        ui.button(icon="arrow_downward", on_click=move_down).props("flat dense round size-xs")
+                        ui.label(c).classes("flex-1 font-bold")
+                        ui.button(icon="chevron_right", on_click=lambda cat=c: show_projs(cat)).props("flat dense")
+
+        def show_projs(cat: str):
+            proj_order = sync_projs(cat)
+            container.clear()
+            title.set_text(f"排序项目 - {cat}")
+            with container:
+                ui.button("← 返回分类排序", on_click=show_cats).props("flat")
+                for i, pid in enumerate(proj_order):
+                    p = get_project(pid)
+                    if not p:
+                        continue
+                    with ui.row().classes("w-full items-center p-2 bg-gray-50 rounded border"):
+                        def move_up(idx=i, _cat=cat):
+                            ord = sort_order["projects"][_cat]
+                            if idx > 0:
+                                ord[idx], ord[idx-1] = ord[idx-1], ord[idx]
+                                save_sort_order(sort_order)
+                                show_projs(_cat)
+                        def move_down(idx=i, _cat=cat):
+                            ord = sort_order["projects"][_cat]
+                            if idx < len(ord) - 1:
+                                ord[idx], ord[idx+1] = ord[idx+1], ord[idx]
+                                save_sort_order(sort_order)
+                                show_projs(_cat)
+                        ui.button(icon="arrow_upward", on_click=move_up).props("flat dense round size-xs")
+                        ui.button(icon="arrow_downward", on_click=move_down).props("flat dense round size-xs")
+                        ui.label(p["name"]).classes("flex-1")
+
+        show_cats()
+
+        with ui.row().classes("w-full justify-end"):
+            ui.button("关闭", on_click=lambda: (dlg.close(), refresh()))
+    dlg.open()
 
 
 def add_project():
@@ -434,35 +546,38 @@ async def _try_start(p: dict) -> str:
     return await asyncio.to_thread(run_script, p["start_script"])
 
 
+async def _run_all_auto_starts(targets: list[dict]) -> list[tuple[str, str]]:
+    logger.info("自启动: %d 个项目", len(targets))
+    results = []
+    for p in targets:
+        out = await _try_start(p)
+        results.append((p["name"], out))
+        logger.info("自启动 %s: %s", p["name"], out)
+    return results
+
+
 async def batch_auto_start():
     targets = [p for p in projects if p.get("auto_start") and p.get("start_script")]
     if not targets:
         ui.notify("没有配置自启动的项目", type="warning")
         return
-    logger.info("批量自启动: %d 个项目", len(targets))
-    for p in targets:
-        out = await _try_start(p)
-        ui.notify(f"{p['name']}: {out}", type="positive", close_button=True)
-        logger.info("批量自启动 %s: %s", p["name"], out)
+    results = await _run_all_auto_starts(targets)
+    for name, out in results:
+        ui.notify(f"{name}: {out}", type="positive", close_button=True)
     ui.notify("批量自启动完成", type="positive")
-
-
-async def run_boot_auto_start():
-    targets = [p for p in projects if p.get("auto_start") and p.get("start_script")]
-    if not targets:
-        return
-    logger.info("检测到 %d 个项目配置了自启动，开始执行", len(targets))
-    for p in targets:
-        out = await _try_start(p)
-        logger.info("自启动 %s: %s", p["name"], out)
-    logger.info("自启动全部完成")
 
 
 # ---------- main ----------
 container = ui.column().classes("w-full max-w-4xl mx-auto p-4")
 ui.query("body").classes("bg-gray-50")
 build_ui()
-ui.timer(1.0, run_boot_auto_start, once=True)
+
+# 环境变量标记确保进程内只执行一次自启动（script 模式下模块可能被重新加载）
+if not os.environ.get("_PROJECT_NAV_AUTO_START_DONE"):
+    os.environ["_PROJECT_NAV_AUTO_START_DONE"] = "1"
+    targets = [p for p in projects if p.get("auto_start") and p.get("start_script")]
+    if targets:
+        asyncio.run(_run_all_auto_starts(targets))
 
 ui.run(
     title="项目管理器",
@@ -470,3 +585,4 @@ ui.run(
     port=PORT,
     reload=False,
 )
+

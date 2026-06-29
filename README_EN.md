@@ -1,6 +1,4 @@
-# Project Nav
-
-**[English](README_EN.md)|[中文](README.md).**
+# Project Manager
 
 A web-based project manager built with NiceGUI for managing local web services — start, stop, and monitor their status.
 
@@ -12,8 +10,10 @@ A web-based project manager built with NiceGUI for managing local web services �
 - **Health Check** — Check project URL reachability, green/red/gray dot status indicator
 - **Script Execution** — One-click start/stop scripts, auto-start on boot + batch mode
 - **Extra Links** — Attach multiple extra links per project
-- **Filter & Search** — Search by name, filter by category, show auto-start only
+- **Filter & Search** — Search by name, filter by category, filter by tag, show auto-start only
 - **Category Grouping** — Projects grouped by category
+- **Sort Management** — Dedicated sort dialog with two-level sorting (categories + projects within each category) using arrow buttons; persists to `sort_order.json`
+- **Tag System** — Free-form tags per project, filterable
 - **Script Templates** — View start/stop script templates from the edit dialog
 
 ## Quick Start
@@ -35,6 +35,7 @@ Visit http://localhost:20001
 | `LOG_FILE` | system temp dir | Log file path |
 | `START_TEMPLATE` | `./start_script_template.txt` | Start script template file |
 | `STOP_TEMPLATE` | `./stop_script_template.txt` | Stop script template file |
+| `SORT_FILE` | `./sort_order.json` | Sort order file |
 
 ## Docker Deployment
 
@@ -102,6 +103,7 @@ project_root/
 ├── start_script_template.txt
 ├── stop_script_template.txt
 ├── projects.json
+├── sort_order.json
 ├── imgs/
 │   └── overview.png
 └── docker/

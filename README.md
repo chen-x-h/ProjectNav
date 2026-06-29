@@ -1,6 +1,4 @@
-# 项目导航
-
-**[English](README_EN.md)|[中文](README.md).**
+# 项目管理器
 
 基于 NiceGUI 的 Web 项目管理器，管理本地 Web 服务的启动、停止与状态监控。
 
@@ -12,9 +10,11 @@
 - **状态检测** — 检测项目 URL 连通性，绿/红/灰圆点指示运行状态
 - **脚本执行** — 一键执行启动/停止脚本，支持自启动（开机 + 批量）
 - **附属链接** — 每个项目可挂载多个附属链接
-- **筛选搜索** — 按名称搜索、按分类筛选、仅看自启动项目
+- **筛选搜索** — 按名称搜索、按分类筛选、按标签筛选、仅看自启动项目
 - **分类分组** — 项目按分类分组展示
-- **脚本模板** — 编辑界面可查看启动/停止脚本模板
+- **排序管理** — 独立排序对话框，支持分类排序及分类内项目排序（上下箭头），结果持久化到 `sort_order.json`
+- **标签系统** — 项目标签自由添加/移除，支持按标签筛选
+- **模板查看** — 编辑界面可查看启动/停止脚本模板
 
 ## 快速启动
 
@@ -35,6 +35,7 @@ python main.py
 | `LOG_FILE` | 系统临时目录 | 日志文件路径 |
 | `START_TEMPLATE` | `./start_script_template.txt` | 启动脚本模板文件 |
 | `STOP_TEMPLATE` | `./stop_script_template.txt` | 停止脚本模板文件 |
+| `SORT_FILE` | `./sort_order.json` | 排序记录文件 |
 
 ## Docker 部署
 
@@ -102,6 +103,7 @@ fi
 ├── start_script_template.txt
 ├── stop_script_template.txt
 ├── projects.json
+├── sort_order.json
 ├── imgs/
 │   └── overview.png
 └── docker/
